@@ -90,7 +90,7 @@ class BaseModel(object):
     with tf.variable_scope(scope or "build_network"):
       with tf.variable_scope("decoder/output_projection"):
         self.output_layer = layers_core.Dense(
-            hparams.tgt_vocab_size, use_bias=False, name="output_projection")
+            3, use_bias=False, name="output_projection")
 
     ## Train graph
     res = self.build_graph(hparams, scope=scope)
