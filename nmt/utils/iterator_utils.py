@@ -94,8 +94,8 @@ def get_iterator(src_dataset,
   if not output_buffer_size:
     output_buffer_size = batch_size * 1000
   src_eos_id = tf.cast(src_vocab_table.lookup(tf.constant(eos)), tf.int32)
-  tgt_sos_id = tf.cast(tgt_vocab_table.lookup(tf.constant(sos)), tf.int32)
-  tgt_eos_id = tf.cast(tgt_vocab_table.lookup(tf.constant(eos)), tf.int32)
+  tgt_sos_id = tf.cast(tgt_vocab_table.lookup(tf.constant(sos)), tf.float32)
+  tgt_eos_id = tf.cast(tgt_vocab_table.lookup(tf.constant(eos)), tf.float32)
 
   src_tgt_dataset = tf.data.Dataset.zip((src_dataset, tgt_dataset))
 
@@ -107,13 +107,14 @@ def get_iterator(src_dataset,
 
   src_tgt_dataset = src_tgt_dataset.map(
       lambda src, tgt: (
-          tf.string_split([src]).values, tf.string_split([tgt]).values),
+          tf.string_split([src], "").values, tf.reshape(tf.string_to_number(tf.string_split([tgt]).values), [-1, 3])),
       num_parallel_calls=num_parallel_calls).prefetch(output_buffer_size)
 
   # Filter zero length input sequences.
   src_tgt_dataset = src_tgt_dataset.filter(
       lambda src, tgt: tf.logical_and(tf.size(src) > 0, tf.size(tgt) > 0))
 
+  # Truncating large sequences
   if src_max_len:
     src_tgt_dataset = src_tgt_dataset.map(
         lambda src, tgt: (src[:src_max_len], tgt),
@@ -126,13 +127,14 @@ def get_iterator(src_dataset,
   # vocab get the lookup table's default_value integer.
   src_tgt_dataset = src_tgt_dataset.map(
       lambda src, tgt: (tf.cast(src_vocab_table.lookup(src), tf.int32),
-                        tf.cast(tgt_vocab_table.lookup(tgt), tf.int32)),
+                        #tf.cast(tgt_vocab_table.lookup(tgt), tf.int32)),
+                        tgt),
       num_parallel_calls=num_parallel_calls).prefetch(output_buffer_size)
   # Create a tgt_input prefixed with <sos> and a tgt_output suffixed with <eos>.
   src_tgt_dataset = src_tgt_dataset.map(
       lambda src, tgt: (src,
-                        tf.concat(([tgt_sos_id], tgt), 0),
-                        tf.concat((tgt, [tgt_eos_id]), 0)),
+                        tf.concat(([[tgt_sos_id, tgt_sos_id, tgt_sos_id]], tgt), 0),
+                        tf.concat((tgt, [[tgt_eos_id, tgt_eos_id, tgt_eos_id]]), 0)),
       num_parallel_calls=num_parallel_calls).prefetch(output_buffer_size)
   # Add in sequence lengths.
   src_tgt_dataset = src_tgt_dataset.map(

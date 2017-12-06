@@ -291,7 +291,7 @@ class BaseModel(object):
       ## Loss
       if self.mode != tf.contrib.learn.ModeKeys.INFER:
         with tf.device(model_helper.get_device_str(num_layers - 1, num_gpus)):
-          loss = self._compute_loss(logits)
+          loss = self._compute_loss(logits)#self._compute_loss(tf.reshape(logits, [-1, hparams.batch_size, 3]))
       else:
         loss = None
 
@@ -378,8 +378,8 @@ class BaseModel(object):
         target_input = iterator.target_input
         if self.time_major:
           target_input = tf.transpose(target_input)
-        decoder_emb_inp = tf.nn.embedding_lookup(
-            self.embedding_decoder, target_input)
+        decoder_emb_inp = tf.reshape(target_input, [self.get_max_time(target_input), hparams.batch_size, hparams.num_units])#tf.nn.embedding_lookup(
+            #self.embedding_decoder, target_input)
 
         # Helper
         helper = tf.contrib.seq2seq.TrainingHelper(
@@ -482,19 +482,17 @@ class BaseModel(object):
   def _compute_loss(self, logits):
     """Compute optimization loss."""
     target_output = self.iterator.target_output
+    # target_output = tf.reshape(target_output, [-1, 128, 3])
     if self.time_major:
       target_output = tf.transpose(target_output)
     max_time = self.get_max_time(target_output)
-    # crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(
-    #     labels=target_output, logits=logits)
     target_weights = tf.sequence_mask(
         self.iterator.target_sequence_length, max_time, dtype=logits.dtype)
     if self.time_major:
       target_weights = tf.transpose(target_weights)
-    # loss = tf.reduce_sum(
-    #     crossent * target_weights) / tf.to_float(self.batch_size)
     mse_loss = tf.losses.mean_squared_error(target_output, logits,
-        weights=target_weights)
+        weights=target_weights)#tf.reshape(target_weights, [-1, 128, 3]))
+
     return mse_loss
 
   def _get_infer_summary(self, hparams):
